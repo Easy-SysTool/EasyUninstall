@@ -46,7 +46,7 @@ EasyUninstall 在设计上严格约束卸载行为，不做任何"粗暴删除"
 ### 从源码构建
 
 ```powershell
-git clone https://github.com/<你的用户名>/EasyUninstall.git
+git clone https://github.com/yoyo-coding/EasyUninstall.git
 cd EasyUninstall
 
 # 构建（自动生成 MSIX 安装包）
