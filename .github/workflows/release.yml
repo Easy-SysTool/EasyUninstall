@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build MSIX
+        run: dotnet build src/EasyUninstall/EasyUninstall.csproj -c Release -p:Platform=x64
+
+      - name: Restore signing certificate
+        env:
+          PFX_BASE64: ${{ secrets.MSIX_PFX }}
+        shell: pwsh
+        run: |
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'cert.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:PFX_BASE64))
+          "PFX_PATH=$pfxPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Sign MSIX
+        env:
+          PFX_PASSWORD: ${{ secrets.MSIX_PFX_PASSWORD }}
+        shell: pwsh
+        run: |
+          $sdkTools = Get-ChildItem "$env:USERPROFILE\.nuget\packages\microsoft.windows.sdk.buildtools" -Recurse -Filter signtool.exe |
+            Where-Object FullName -match '\\x64\\' | Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          Write-Host "Using signtool: $sdkTools"
+          $msix = Get-ChildItem 'src/EasyUninstall/AppPackages' -Recurse -Filter 'EasyUninstall_*.msix' |
+            Select-Object -First 1 -ExpandProperty FullName
+          & $sdkTools sign /fd SHA256 /a /f $env:PFX_PATH /p $env:PFX_PASSWORD $msix
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
+          "MSIX_PATH=$msix" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload MSIX to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.MSIX_PATH }}
