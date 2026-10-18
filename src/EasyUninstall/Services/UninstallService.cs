@@ -46,6 +46,55 @@ public sealed class UninstallService : IUninstallService
         }
     }
 
+    public async Task<UninstallResult> ForceUninstallAsync(InstalledApp app, CancellationToken ct)
+    {
+        // Only meaningful for desktop apps with an install location outside MSIX.
+        if (app.Category == AppCategory.Store)
+            return new UninstallResult(UninstallOutcome.Failed,
+                LocalizationService.Get("ForceNotApplicable"));
+
+        var guard = ForceUninstallGuard.GuardPath(app.InstallLocation);
+        if (guard is not null)
+            return new UninstallResult(UninstallOutcome.Failed,
+                LocalizationService.Format("ForceRefused", guard));
+
+        // Find running processes whose executable lives under the install directory.
+        var processIds = new List<int>();
+        if (app.InstallLocation is { Length: > 0 })
+        {
+            foreach (var process in System.Diagnostics.Process.GetProcesses())
+            {
+                try
+                {
+                    var exePath = process.MainModule?.FileName;
+                    if (exePath is not null &&
+                        exePath.StartsWith(app.InstallLocation, StringComparison.OrdinalIgnoreCase))
+                    {
+                        processIds.Add(process.Id);
+                    }
+                }
+                catch (System.ComponentModel.Win32Exception) { }
+                catch (InvalidOperationException) { }
+                finally { process.Dispose(); }
+            }
+        }
+
+        var keyPaths = RegistryAppSource.GetUninstallKeyPathsFor(app.Id);
+        var instruction = new ForceUninstallGuard.ForceInstruction(
+            [.. processIds], app.InstallLocation, [.. keyPaths]);
+
+        var launched = await ForceUninstallService.LaunchElevatedHelperAsync(instruction, ct);
+        if (!launched)
+            return new UninstallResult(UninstallOutcome.Cancelled,
+                LocalizationService.Get("ForceElevationCancelled"));
+
+        await Task.Delay(1500, ct);
+        var stillPresent = await IsStillPresentAsync(app, ct);
+        return stillPresent
+            ? new UninstallResult(UninstallOutcome.Unknown, LocalizationService.Get("UninstallStillPresent"))
+            : new UninstallResult(UninstallOutcome.Success, LocalizationService.Get("ForceComplete"));
+    }
+
     private async Task<UninstallResult> UninstallWin32Async(InstalledApp app, CancellationToken ct)
     {
         var command = _win32.GetVerifiedCommand(app);

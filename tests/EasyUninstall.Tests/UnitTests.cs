@@ -150,3 +150,51 @@ public class AppCatalogExtensionsTests
         Assert.Equal("A", sorted[0].DisplayName);
     }
 }
+
+public class ForceUninstallGuardTests
+{
+    [Theory]
+    [InlineData(null, "empty")]
+    [InlineData("", "empty")]
+    [InlineData("C:\\", "drive-root")]
+    [InlineData("C:\\Windows", "system-root")]
+    [InlineData("C:\\Windows\\System32\\Fakes", "system-root")]
+    [InlineData("C:\\Users", "system-root")]
+    [InlineData("C:\\Users\\someone\\App", "system-root")]
+    [InlineData("C:\\Foo", "too-shallow")]
+    [InlineData("F:\\EasyUninstall\\cache", "self")]
+    [InlineData("C:\\Program Files\\WindowsApps\\Pkg", "msix-store")]
+    public void GuardPath_DangerousPaths_Refused(string? path, string expectedReason)
+    {
+        Assert.Equal(expectedReason, ForceUninstallGuard.GuardPath(path));
+    }
+
+    [Theory]
+    [InlineData("C:\\Apps\\SomeVendor\\SomeApp")]
+    [InlineData("D:\\Tools\\Editor\\bin")]
+    [InlineData("C:\\Program Files\\Vendor\\SomeApp")]
+    [InlineData("C:\\Program Files (x86)\\Vendor\\SomeApp")]
+    public void GuardPath_PlausibleAppDirectories_Allowed(string path)
+    {
+        Assert.Null(ForceUninstallGuard.GuardPath(path));
+    }
+
+    [Fact]
+    public void Serialize_RoundTrip_PreservesInstruction()
+    {
+        var original = new ForceUninstallGuard.ForceInstruction(
+            [123, 456], "C:\\Apps\\Test", ["HKLM|SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Test"]);
+        var json = ForceUninstallGuard.Serialize(original);
+        var restored = ForceUninstallGuard.Deserialize(json);
+        Assert.NotNull(restored);
+        Assert.Equal(original.ProcessIds, restored.ProcessIds);
+        Assert.Equal(original.InstallDirectory, restored.InstallDirectory);
+        Assert.Equal(original.UninstallKeyPaths, restored.UninstallKeyPaths);
+    }
+
+    [Fact]
+    public void Deserialize_Garbage_ReturnsNull()
+    {
+        Assert.Null(ForceUninstallGuard.Deserialize("not json{{{"));
+    }
+}

@@ -35,8 +35,8 @@ public sealed class PackageAppSource : IAppSource
                     InstallDate = package.InstalledDate.UtcDateTime,
 #pragma warning disable CA1416
                     InstallLocation = package.InstalledPath is { Length: > 0 } loc ? loc : null,
+                    IconPath = ResolvePackageIconPath(package),
 #pragma warning restore CA1416
-                    IconPath = string.Empty,
                     PackageFullName = package.Id.FullName,
                     CanUninstall = true
                 });
@@ -44,5 +44,39 @@ public sealed class PackageAppSource : IAppSource
         }
 
         return Task.FromResult<IReadOnlyList<InstalledApp>>(apps);
+    }
+
+    /// <summary>
+    /// Resolves a package logo to a displayable image path. Package logos on disk are
+    /// already image files, so this passes the path through IconExtractService's image
+    /// check; scale-factor variants (e.g. Square44x44Logo.scale-200.png) are common,
+    /// so the first existing candidate wins.
+    /// </summary>
+    private static string ResolvePackageIconPath(Package package)
+    {
+#pragma warning disable CA1416
+        try
+        {
+            var logo = package.Logo;
+            if (logo is not null && logo.IsFile)
+            {
+                return IconExtractService.GetImageFilePath(logo.LocalPath) ?? string.Empty;
+            }
+            var installedPath = package.InstalledPath;
+            if (!string.IsNullOrEmpty(installedPath))
+            {
+                foreach (var name in new[] { "Square44x44Logo.png", "Square150x150Logo.png", "Logo.png", "AssetLogo.png" })
+                {
+                    var candidate = IconExtractService.GetImageFilePath(Path.Combine(installedPath, "Assets", name));
+                    if (candidate is not null) return candidate;
+                }
+            }
+        }
+        catch
+        {
+            // Logo access can fail for some packages; fall through to empty (placeholder shown).
+        }
+#pragma warning restore CA1416
+        return string.Empty;
     }
 }

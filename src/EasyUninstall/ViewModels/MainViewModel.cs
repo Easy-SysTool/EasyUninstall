@@ -173,6 +173,55 @@ public partial class MainViewModel : ObservableObject
 
     private bool CanUninstallSelected() => !IsBusy && SelectedApp?.CanUninstall == true;
 
+    [RelayCommand(CanExecute = nameof(CanForceUninstallSelected))]
+    public async Task ForceUninstallAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedApp is not { } app) return;
+        if (app.CanUninstall)
+        {
+            StatusMessage = LocalizationService.Get("WarnUnverifiable");
+            return;
+        }
+
+        IsBusy = true;
+        StatusMessage = LocalizationService.Format("StatusUninstalling", app.DisplayName);
+        try
+        {
+            var result = await _uninstallService.ForceUninstallAsync(app, cancellationToken);
+            HasError = result.Outcome is UninstallOutcome.Failed;
+            StatusMessage = result.Outcome switch
+            {
+                UninstallOutcome.Success => LocalizationService.Format("ResultSuccess", app.DisplayName, result.Message),
+                UninstallOutcome.Cancelled => LocalizationService.Format("ResultCancelled", app.DisplayName),
+                UninstallOutcome.Unknown => LocalizationService.Format("ResultUnknown", app.DisplayName, result.Message),
+                _ => LocalizationService.Format("ResultFailed", app.DisplayName, result.Message)
+            };
+
+            if (result.Outcome is UninstallOutcome.Success or UninstallOutcome.Unknown)
+            {
+                var apps = await _catalog.RefreshAsync(cancellationToken);
+                _masterList = apps;
+                ApplyFilters();
+                SelectedApp = null;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = LocalizationService.Get("StatusCancelled");
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            StatusMessage = LocalizationService.Format("StatusUninstallFailed", ex.Message);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanForceUninstallSelected() => !IsBusy && SelectedApp is { CanUninstall: false };
+
     /// <summary>Shorthand for localized strings.</summary>
     private static string L(string key) => LocalizationService.Get(key);
 

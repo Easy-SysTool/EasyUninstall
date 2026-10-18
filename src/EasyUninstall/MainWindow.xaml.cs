@@ -44,6 +44,7 @@ public sealed partial class MainWindow : Window
         };
 
         UninstallButton.Click += async (_, _) => await ConfirmUninstallAsync();
+        ForceUninstallButton.Click += async (_, _) => await ConfirmForceUninstallAsync();
 
         AppList.ItemsSource = _vm.ViewApps;
         _vm.PropertyChanged += async (_, e) =>
@@ -103,6 +104,7 @@ public sealed partial class MainWindow : Window
         RefreshButton.Content = LocalizationService.Get("Refresh");
         EmptyText.Text = LocalizationService.Get("EmptyList");
         UninstallButton.Content = LocalizationService.Get("Uninstall");
+        ForceUninstallButton.Content = LocalizationService.Get("ForceUninstall");
         UpdateDetailPane(); // re-render detail labels with the active language
     }
 
@@ -127,12 +129,14 @@ public sealed partial class MainWindow : Window
         {
             DetailWarn.IsOpen = false;
             UninstallButton.IsEnabled = true;
+            ForceUninstallButton.Visibility = Visibility.Collapsed;
         }
         else
         {
             DetailWarn.Message = app.UnavailableReason ?? LocalizationService.Get("WarnUnverifiable");
             DetailWarn.IsOpen = true;
             UninstallButton.IsEnabled = false;
+            ForceUninstallButton.Visibility = Visibility.Visible;
         }
     }
 
@@ -160,6 +164,26 @@ public sealed partial class MainWindow : Window
         if (result != ContentDialogResult.Primary) return;
 
         await RunAsync(_vm.UninstallCommand.ExecuteAsync(null));
+    }
+
+    private async Task ConfirmForceUninstallAsync()
+    {
+        if (_vm.SelectedApp is not { } app) return;
+        if (app.CanUninstall) return; // force is only for unverifiable apps
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = LocalizationService.Format("ForceConfirmTitle", app.DisplayName),
+            Content = LocalizationService.Get("ForceConfirmContent"),
+            PrimaryButtonText = LocalizationService.Get("ForceUninstall"),
+            CloseButtonText = LocalizationService.Get("Cancel"),
+            DefaultButton = ContentDialogButton.Close
+        };
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        await RunAsync(_vm.ForceUninstallCommand.ExecuteAsync(null));
     }
 
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

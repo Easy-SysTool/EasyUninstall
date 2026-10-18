@@ -79,5 +79,15 @@ internal static class StringsEn
 
         // Warnings
         ["WarnUnverifiable"] = "The uninstall command for this app could not be verified; uninstall is disabled.",
+
+        // Force uninstall
+        ["ForceUninstall"] = "Force uninstall",
+        ["ForceConfirmTitle"] = "Force uninstall {0}?",
+        ["ForceConfirmContent"] = "No verified official uninstaller was found. Force uninstall will request administrator rights to kill the app's processes, delete its install directory, and remove its uninstall entry.\n\nWarning: side effects are possible — shared components, file associations, startup entries and services will remain; other software sharing files in that directory may be affected. Prefer the official uninstaller when available. Continue?",
+        ["ForceElevationCancelled"] = "Cancelled: administrator rights were not granted; force uninstall was not performed.",
+        ["ForceComplete"] = "Force uninstall completed.",
+        ["ForceRefused"] = "Force uninstall refused: install directory is unsafe ({0}).",
+        ["ForceNotApplicable"] = "Store apps do not need force uninstall; use regular uninstall.",
+        ["ForceUnavailable"] = "This app has no known install directory; force uninstall is unavailable.",
     };
 }

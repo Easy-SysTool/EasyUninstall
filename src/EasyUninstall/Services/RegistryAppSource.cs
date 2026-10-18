@@ -45,6 +45,29 @@ public sealed class RegistryAppSource : IAppSource
         return Task.FromResult<IReadOnlyList<InstalledApp>>(apps);
     }
 
+    /// <summary>
+    /// Enumerates the uninstall registry key paths ("HKLM|SOFTWARE\...\Uninstall\Name")
+    /// whose key name matches the app id. The elevated force-uninstall helper deletes
+    /// exactly these keys and nothing else.
+    /// </summary>
+    public static IReadOnlyList<string> GetUninstallKeyPathsFor(string appId)
+    {
+        var paths = new List<string>();
+        foreach (var (hive, label) in new[] { (Registry.LocalMachine, "HKLM"), (Registry.CurrentUser, "HKCU") })
+        {
+            foreach (var sub in UninstallKeys)
+            {
+                using var key = hive.OpenSubKey(sub);
+                if (key is null) continue;
+                if (key.GetSubKeyNames().Any(n => n.Equals(appId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    paths.Add($"{label}|{sub}\\{appId}");
+                }
+            }
+        }
+        return paths;
+    }
+
     private static InstalledApp? ReadApp(RegistryKey key, string keyName)
     {
         var displayName = key.GetValue("DisplayName") as string;
@@ -79,7 +102,7 @@ public sealed class RegistryAppSource : IAppSource
             Publisher = publisher,
             InstallDate = installDate,
             InstallLocation = string.IsNullOrWhiteSpace(installLocation) ? null : installLocation,
-            IconPath = ExtractIconPath(iconPath),
+            IconPath = ResolveIconPath(iconPath, command?.ExecutablePath),
             UninstallCommandRaw = uninstallString,
             CanUninstall = canUninstall,
             UnavailableReason = canUninstall
@@ -106,5 +129,34 @@ public sealed class RegistryAppSource : IAppSource
         var comma = displayIcon.LastIndexOf(',');
         var path = comma > 0 ? displayIcon[..comma] : displayIcon;
         return path.Trim().Trim('"');
+    }
+
+    /// <summary>
+    /// Extracts a display icon to a cached PNG. Prefers the registry DisplayIcon entry
+    /// (with its icon index when present); falls back to the verified uninstall executable.
+    /// Returns an empty string when no icon can be resolved.
+    /// </summary>
+    private static string ResolveIconPath(string? displayIcon, string? uninstallExe)
+    {
+        IconSource? display = null;
+        if (!string.IsNullOrWhiteSpace(displayIcon))
+        {
+            var raw = displayIcon.Trim();
+            // "path,index" form: keep the index for icon extraction.
+            var comma = raw.LastIndexOf(',');
+            if (comma > 0 && int.TryParse(raw[(comma + 1)..].Trim(), out var index) && index >= 0)
+            {
+                var path = raw[..comma].Trim().Trim('"');
+                if (path.Length > 0) display = new IconSource(path, index);
+            }
+            else
+            {
+                var path = raw.Trim('"');
+                if (path.Length > 0) display = new IconSource(path);
+            }
+        }
+
+        IconSource? exe = uninstallExe is { Length: > 0 } ? new IconSource(uninstallExe) : null;
+        return IconExtractService.GetIconPath(display, exe) ?? string.Empty;
     }
 }

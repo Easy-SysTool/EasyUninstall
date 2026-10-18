@@ -35,6 +35,13 @@ public sealed record UninstallCommand(string ExecutablePath, string Arguments, b
 public interface IUninstallService
 {
     Task<UninstallResult> UninstallAsync(InstalledApp app, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Force-removes an app that has no verifiable uninstaller: elevates via UAC, kills
+    /// its processes, deletes the install directory (guarded) and its own uninstall
+    /// registry key. High-impact; the caller must confirm with the user first.
+    /// </summary>
+    Task<UninstallResult> ForceUninstallAsync(InstalledApp app, CancellationToken cancellationToken);
 }
 
 /// <summary>Outcome of an uninstall attempt.</summary>
