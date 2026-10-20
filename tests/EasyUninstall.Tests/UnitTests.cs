@@ -198,3 +198,19 @@ public class ForceUninstallGuardTests
         Assert.Null(ForceUninstallGuard.Deserialize("not json{{{"));
     }
 }
+
+public class SystemComponentHeuristicsTests
+{
+    [Theory]
+    [InlineData("{a1b2c3d4}", "Visual C++ 2015 Redistributable (x64)", "Microsoft Corporation", true)]
+    [InlineData("DotNet.Core", "Microsoft .NET Runtime 8.0", "Microsoft Corporation", true)]
+    [InlineData("Driver_Example", "Example Device Driver", "Example Corp", true)]
+    [InlineData("SomeUpdate", "Some Update Helper", "Anyone", true)]
+    [InlineData("NotepadPlusPlus", "Notepad++", "Notepad++ Team", false)]
+    [InlineData("7-Zip", "7-Zip 24.0", "Igor Pavlov", false)]
+    [InlineData("Steam", "Steam", "Valve Corporation", false)]
+    public void IsSystemComponent_Classifies(string keyName, string displayName, string publisher, bool expected)
+    {
+        Assert.Equal(expected, RegistryAppSource.IsSystemComponent(keyName, displayName, publisher));
+    }
+}

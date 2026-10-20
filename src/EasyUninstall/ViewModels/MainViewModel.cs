@@ -177,9 +177,10 @@ public partial class MainViewModel : ObservableObject
     public async Task ForceUninstallAsync(CancellationToken cancellationToken)
     {
         if (SelectedApp is not { } app) return;
-        if (app.CanUninstall)
+        if (app.IsSystemComponent)
         {
-            StatusMessage = LocalizationService.Get("WarnUnverifiable");
+            HasError = true;
+            StatusMessage = LocalizationService.Get("ForceSystemBlocked");
             return;
         }
 
@@ -220,7 +221,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanForceUninstallSelected() => !IsBusy && SelectedApp is { CanUninstall: false };
+    private bool CanForceUninstallSelected() => !IsBusy && SelectedApp is { IsSystemComponent: false };
 
     /// <summary>Shorthand for localized strings.</summary>
     private static string L(string key) => LocalizationService.Get(key);

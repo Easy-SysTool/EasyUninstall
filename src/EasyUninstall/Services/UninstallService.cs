@@ -48,6 +48,11 @@ public sealed class UninstallService : IUninstallService
 
     public async Task<UninstallResult> ForceUninstallAsync(InstalledApp app, CancellationToken ct)
     {
+        // System components / platform runtimes must never be force-removed.
+        if (app.IsSystemComponent)
+            return new UninstallResult(UninstallOutcome.Failed,
+                LocalizationService.Get("ForceSystemBlocked"));
+
         // Only meaningful for desktop apps with an install location outside MSIX.
         if (app.Category == AppCategory.Store)
             return new UninstallResult(UninstallOutcome.Failed,

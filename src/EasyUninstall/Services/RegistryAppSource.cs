@@ -105,10 +105,47 @@ public sealed class RegistryAppSource : IAppSource
             IconPath = ResolveIconPath(iconPath, command?.ExecutablePath),
             UninstallCommandRaw = uninstallString,
             CanUninstall = canUninstall,
+            IsSystemComponent = IsSystemComponent(keyName, displayName, publisher),
             UnavailableReason = canUninstall
                 ? null
                 : "卸载命令缺失或无法验证，已禁用卸载。"
         };
+    }
+
+    /// <summary>
+    /// Heuristics identifying OS components / platform runtimes that must never be
+    /// force-removed. Conservative: matched against registry key name, display name
+    /// and publisher; anything not matched stays force-eligible.
+    /// </summary>
+    public static bool IsSystemComponent(string keyName, string displayName, string publisher)
+    {
+        // Microsoft platform runtimes: redistributables, .NET, Edge WebView etc.
+        if (publisher.Contains("Microsoft Corporation", StringComparison.OrdinalIgnoreCase))
+        {
+            string[] runtimeMarkers =
+            [
+                "Visual C++", "Redistributable", ".NET", "Microsoft Edge",
+                "WebView", "OneDrive", "Microsoft Visual Studio", "Windows App",
+                "SQL Server", "Office"
+            ];
+            if (runtimeMarkers.Any(m => displayName.Contains(m, StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        // Driver packages, update helpers, platform keys.
+        string[] keyMarkers = ["driver", "kb", "update", "runtime", "redist"];
+        if (keyMarkers.Any(m => keyName.Contains(m, StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        string[] nameMarkers =
+        [
+            "Microsoft Visual C++", "redistributable", "runtime", "driver",
+            "Windows Driver", "系統组件", "系统组件"
+        ];
+        if (nameMarkers.Any(m => displayName.Contains(m, StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        return false;
     }
 
     public static DateTime? ParseInstallDate(string? raw)

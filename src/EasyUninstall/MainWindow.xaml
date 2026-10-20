@@ -113,8 +113,19 @@
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1" Visibility="Collapsed">
                         <StackPanel Spacing="8">
+                            <Button x:Name="DetailCloseButton" Content="&#xE711;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                    Background="Transparent" BorderThickness="0" Padding="4"
+                                    HorizontalAlignment="Right" Margin="0,-8,-8,0"/>
+                            <Grid x:Name="DetailIconPanel" Height="64" Visibility="Collapsed">
+                                <TextBlock Text="📦" FontSize="36"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <Image x:Name="DetailIcon" Width="64" Height="64"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
                             <TextBlock x:Name="DetailName" FontWeight="SemiBold" FontSize="16"
-                                       TextWrapping="Wrap"/>
+                                       TextWrapping="Wrap" HorizontalAlignment="Center"
+                                       HorizontalTextAlignment="Center"/>
                             <InfoBar x:Name="DetailWarn" Severity="Warning" IsOpen="False" IsClosable="False"/>
                             <StackPanel x:Name="DetailFields" Spacing="6">
                                 <TextBlock x:Name="DetailVersion" TextWrapping="Wrap"/>
@@ -132,10 +143,15 @@
                 </Grid>
 
                 <!-- Status bar / error feedback -->
-                <InfoBar x:Name="ErrorBar" Grid.Row="2" IsOpen="False" Severity="Error"
-                         Margin="0,8,0,0"/>
                 <TextBlock x:Name="StatusText" Grid.Row="2" Margin="0,8,0,0"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <!-- Toast notifications, anchored top-right, auto-close after 5s -->
+                <Grid x:Name="ToastLayer" Grid.Row="1"
+                      HorizontalAlignment="Right" VerticalAlignment="Top"
+                      Width="360" Margin="0,0,4,0" Canvas.ZIndex="10">
+                    <StackPanel x:Name="ToastStack" Spacing="8"/>
+                </Grid>
             </Grid>
         </NavigationView>
     </Grid>

@@ -3,6 +3,7 @@ using EasyUninstall.Services;
 using EasyUninstall.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace EasyUninstall;
 
@@ -45,6 +46,7 @@ public sealed partial class MainWindow : Window
 
         UninstallButton.Click += async (_, _) => await ConfirmUninstallAsync();
         ForceUninstallButton.Click += async (_, _) => await ConfirmForceUninstallAsync();
+        DetailCloseButton.Click += (_, _) => _vm.SelectedApp = null;
 
         AppList.ItemsSource = _vm.ViewApps;
         _vm.PropertyChanged += async (_, e) =>
@@ -54,16 +56,24 @@ public sealed partial class MainWindow : Window
                 AppList.SelectedItem = _vm.SelectedApp;
                 UpdateDetailPane();
             }
-            if (e.PropertyName == nameof(MainViewModel.StatusMessage)) StatusText.Text = _vm.StatusMessage;
+            if (e.PropertyName == nameof(MainViewModel.StatusMessage))
+            {
+                StatusText.Text = _vm.StatusMessage;
+                if (_vm.HasError)
+                {
+                    ShowToast(_vm.StatusMessage, InfoBarSeverity.Error);
+                }
+                else if (_vm.StatusMessage is { Length: > 0 } &&
+                         (_vm.StatusMessage.Contains("✔") || _vm.StatusMessage.Contains("完成") ||
+                          _vm.StatusMessage.Contains("取消") || _vm.StatusMessage.Contains("成功")))
+                {
+                    ShowToast(_vm.StatusMessage, InfoBarSeverity.Success);
+                }
+            }
             if (e.PropertyName == nameof(MainViewModel.IsBusy) || e.PropertyName == nameof(MainViewModel.IsEmpty))
             {
                 LoadingRing.IsActive = _vm.IsBusy;
                 EmptyText.Visibility = _vm.IsEmpty ? Visibility.Visible : Visibility.Collapsed;
-            }
-            if (e.PropertyName == nameof(MainViewModel.HasError))
-            {
-                ErrorBar.IsOpen = _vm.HasError;
-                ErrorBar.Message = _vm.StatusMessage;
             }
         };
 
@@ -118,6 +128,20 @@ public sealed partial class MainWindow : Window
 
         DetailPane.Visibility = Visibility.Visible;
         DetailName.Text = app.DisplayName;
+        // Centered app icon: show the cached PNG when available, hide panel otherwise
+        // (the emoji fallback in XAML only shows when the panel is visible and image empty).
+        if (!string.IsNullOrWhiteSpace(app.IconPath) && File.Exists(app.IconPath))
+        {
+            DetailIcon.Source = new BitmapImage(new Uri(app.IconPath));
+            DetailIcon.Visibility = Visibility.Visible;
+            DetailIconPanel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            DetailIcon.Source = null;
+            DetailIcon.Visibility = Visibility.Collapsed;
+            DetailIconPanel.Visibility = Visibility.Collapsed;
+        }
         DetailVersion.Text = LocalizationService.Format("DetailVersion", app.DisplayVersion ?? LocalizationService.Get("Unknown"));
         DetailPublisher.Text = LocalizationService.Format("DetailPublisher", app.Publisher ?? LocalizationService.Get("Unknown"));
         DetailInstallDate.Text = LocalizationService.Format("DetailInstallDate",
@@ -129,14 +153,31 @@ public sealed partial class MainWindow : Window
         {
             DetailWarn.IsOpen = false;
             UninstallButton.IsEnabled = true;
-            ForceUninstallButton.Visibility = Visibility.Collapsed;
         }
         else
         {
             DetailWarn.Message = app.UnavailableReason ?? LocalizationService.Get("WarnUnverifiable");
             DetailWarn.IsOpen = true;
             UninstallButton.IsEnabled = false;
+        }
+
+        // Force uninstall is offered for every desktop app (even when a verified
+        // uninstaller exists), but never for system components or Store apps.
+        if (app.Category == Models.AppCategory.Store)
+        {
+            ForceUninstallButton.Visibility = Visibility.Collapsed;
+        }
+        else if (app.IsSystemComponent)
+        {
             ForceUninstallButton.Visibility = Visibility.Visible;
+            ForceUninstallButton.IsEnabled = false;
+            ToolTipService.SetToolTip(ForceUninstallButton, LocalizationService.Get("ForceSystemBlocked"));
+        }
+        else
+        {
+            ForceUninstallButton.Visibility = Visibility.Visible;
+            ForceUninstallButton.IsEnabled = true;
+            ToolTipService.SetToolTip(ForceUninstallButton, null);
         }
     }
 
@@ -169,7 +210,7 @@ public sealed partial class MainWindow : Window
     private async Task ConfirmForceUninstallAsync()
     {
         if (_vm.SelectedApp is not { } app) return;
-        if (app.CanUninstall) return; // force is only for unverifiable apps
+        if (app.IsSystemComponent || app.Category == Models.AppCategory.Store) return;
 
         var dialog = new ContentDialog
         {
@@ -337,10 +378,66 @@ public sealed partial class MainWindow : Window
         };
     }
 
-    public void ShowError(string message)
+    public void ShowError(string message) => ShowToast(message, InfoBarSeverity.Error);
+
+    /// <summary>
+    /// Shows a toast InfoBar anchored at the window's top-right with a 5-second
+    /// countdown progress bar; closes automatically when the bar drains or when
+    /// the user dismisses it.
+    /// </summary>
+    private void ShowToast(string message, InfoBarSeverity severity)
     {
-        ErrorBar.IsOpen = true;
-        ErrorBar.Message = message;
+        var bar = new InfoBar
+        {
+            Severity = severity,
+            Message = message,
+            IsOpen = true,
+            IsClosable = true,
+            CornerRadius = new CornerRadius(8)
+        };
+        var progress = new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value = 100,
+            IsIndeterminate = false,
+            Height = 3,
+            Margin = new Thickness(0, 2, 0, 0)
+        };
+        var panel = new StackPanel();
+        panel.Children.Add(bar);
+        panel.Children.Add(progress);
+        ToastStack.Children.Insert(0, panel);
+
+        var cts = new CancellationTokenSource();
+        bar.CloseButtonClick += (_, _) => cts.Cancel();
+        bar.Closed += (_, _) => cts.Cancel();
+
+        _ = AnimateToastAsync(panel, progress, cts.Token);
+    }
+
+    /// <summary>Drains the toast progress bar over 5 seconds, then removes the toast.</summary>
+    private static async Task AnimateToastAsync(StackPanel panel, ProgressBar progress, CancellationToken ct)
+    {
+        const int totalMs = 5000;
+        const int stepMs = 50;
+        try
+        {
+            for (var elapsed = 0; elapsed < totalMs; elapsed += stepMs)
+            {
+                await Task.Delay(stepMs, ct);
+                progress.Value = 100 - (100.0 * elapsed / totalMs);
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            panel.Opacity = 0;
+            if (panel.Parent is StackPanel stack)
+            {
+                stack.Children.Remove(panel);
+            }
+        }
     }
 
     private async Task RunAsync(Task task)

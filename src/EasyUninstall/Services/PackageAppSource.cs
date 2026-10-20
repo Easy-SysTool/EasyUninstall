@@ -38,7 +38,8 @@ public sealed class PackageAppSource : IAppSource
                     IconPath = ResolvePackageIconPath(package),
 #pragma warning restore CA1416
                     PackageFullName = package.Id.FullName,
-                    CanUninstall = true
+                    CanUninstall = true,
+                    IsSystemComponent = true // Store packages always use the package manager instead
                 });
             }
         }

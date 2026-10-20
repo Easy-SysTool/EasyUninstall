@@ -83,11 +83,12 @@ internal static class StringsZh
         // Force uninstall
         ["ForceUninstall"] = "强制卸载",
         ["ForceConfirmTitle"] = "强制卸载 {0}？",
-        ["ForceConfirmContent"] = "未找到可验证的官方卸载程序。强制卸载将请求管理员权限，强行结束该软件的进程、删除其安装目录并清理卸载项。\n\n注意：这可能产生副作用——残留的共享组件、文件关联、开机启动项和服务不会被清理；若其他软件与该目录共用文件，可能受影响。建议优先使用官方卸载程序。是否继续？",
+        ["ForceConfirmContent"] = "强制卸载将请求管理员权限，强行结束该软件的进程、删除其安装目录并清理卸载项。\n\n注意：这可能产生副作用——残留的共享组件、文件关联、开机启动项和服务不会被清理；若其他软件与该目录共用文件，可能受影响。建议优先使用官方卸载程序。是否继续？",
         ["ForceElevationCancelled"] = "已取消：未获得管理员权限，强制卸载未执行。",
         ["ForceComplete"] = "强制卸载完成。",
         ["ForceRefused"] = "强制卸载已拒绝：安装目录不安全（{0}）。",
         ["ForceNotApplicable"] = "商店应用无需强制卸载，请使用常规卸载。",
+        ["ForceSystemBlocked"] = "该软件属于系统组件或平台运行库，禁止强制卸载以保护系统稳定。",
         ["ForceUnavailable"] = "该软件没有已知的安装目录，无法强制卸载。",
     };
 }

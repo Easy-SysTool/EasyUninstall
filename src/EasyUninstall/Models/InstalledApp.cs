@@ -43,6 +43,13 @@ public sealed class InstalledApp
     /// <summary>Whether a verified uninstall mechanism is available.</summary>
     public bool CanUninstall { get; init; }
 
+    /// <summary>
+    /// The app is part of the operating system or a platform runtime (e.g. a VC++
+    /// redistributable, a driver package, a Windows update entry). Force removal is
+    /// forbidden regardless of user request; ordinary uninstall stays as-is.
+    /// </summary>
+    public bool IsSystemComponent { get; init; }
+
     /// <summary>Reason uninstall is unavailable, when <see cref="CanUninstall"/> is false.</summary>
     public string? UnavailableReason { get; init; }
 }
